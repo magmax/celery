@@ -30,6 +30,8 @@ from .schedules import maybe_schedule, crontab
 from .utils.imports import instantiate
 from .utils.timeutils import humanize_seconds
 from .utils.log import get_logger, iter_open_logger_fds
+from .failover import ServiceFailover
+
 
 __all__ = ['SchedulingError', 'ScheduleEntry', 'Scheduler',
            'PersistentScheduler', 'Service', 'EmbeddedService']
@@ -439,8 +441,11 @@ class Service(object):
             signals.beat_embedded_init.send(sender=self)
             platforms.set_process_title('celery beat')
 
+        failover = ServiceFailover(self.app, 'celery.beat.master')
         try:
             while not self._is_shutdown.is_set():
+                failover.wait_master()
+
                 interval = self.scheduler.tick()
                 debug('beat: Waking up %s.',
                       humanize_seconds(interval, prefix='in '))
